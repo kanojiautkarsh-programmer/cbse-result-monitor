@@ -1,6 +1,6 @@
-import { createClient } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
 
-const kv = createClient({
+const kv = new Redis({
   url: process.env.KV_REST_API_URL,
   token: process.env.KV_REST_API_TOKEN,
 });
@@ -13,12 +13,6 @@ export interface Update {
   url: string;
   timestamp: string;
   checkedAt: string;
-}
-
-export interface StoredData {
-  updates: Update[];
-  lastChecked: string;
-  redditDiscussions: RedditDiscussion[];
 }
 
 export interface RedditDiscussion {
@@ -37,6 +31,7 @@ const LAST_CHECKED_KEY = 'cbse:lastChecked';
 
 export async function getUpdates(): Promise<Update[]> {
   try {
+    if (!process.env.KV_REST_API_URL) return [];
     const data = await kv.get<Update[]>(UPDATES_KEY);
     return data || [];
   } catch {
@@ -45,10 +40,12 @@ export async function getUpdates(): Promise<Update[]> {
 }
 
 export async function saveUpdates(updates: Update[]): Promise<void> {
+  if (!process.env.KV_REST_API_URL) return;
   await kv.set(UPDATES_KEY, updates);
 }
 
 export async function addUpdate(update: Update): Promise<void> {
+  if (!process.env.KV_REST_API_URL) return;
   const updates = await getUpdates();
   const exists = updates.some(u => u.id === update.id);
   if (!exists) {
@@ -59,15 +56,22 @@ export async function addUpdate(update: Update): Promise<void> {
 }
 
 export async function getLastChecked(): Promise<string | null> {
-  return await kv.get<string>(LAST_CHECKED_KEY);
+  try {
+    if (!process.env.KV_REST_API_URL) return null;
+    return await kv.get<string>(LAST_CHECKED_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export async function setLastChecked(time: string): Promise<void> {
+  if (!process.env.KV_REST_API_URL) return;
   await kv.set(LAST_CHECKED_KEY, time);
 }
 
 export async function getRedditDiscussions(): Promise<RedditDiscussion[]> {
   try {
+    if (!process.env.KV_REST_API_URL) return [];
     const data = await kv.get<RedditDiscussion[]>(REDDIT_KEY);
     return data || [];
   } catch {
@@ -76,6 +80,7 @@ export async function getRedditDiscussions(): Promise<RedditDiscussion[]> {
 }
 
 export async function saveRedditDiscussions(discussions: RedditDiscussion[]): Promise<void> {
+  if (!process.env.KV_REST_API_URL) return;
   await kv.set(REDDIT_KEY, discussions);
 }
 
