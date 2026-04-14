@@ -1,4 +1,4 @@
-import { Update } from './storage';
+import { Update } from '../storage';
 
 interface RedditPost {
   id: string;
@@ -61,6 +61,7 @@ export async function fetchRedditUpdates(): Promise<Update[]> {
 }
 
 export async function fetchTopRedditDiscussions(): Promise<{
+  id: string;
   title: string;
   url: string;
   author: string;

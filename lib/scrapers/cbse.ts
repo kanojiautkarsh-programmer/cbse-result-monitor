@@ -1,4 +1,6 @@
-import { Update } from './storage';
+import { Update } from '../storage';
+
+export type { Update };
 
 export async function fetchCBSESiteUpdates(): Promise<Update[]> {
   const updates: Update[] = [];
