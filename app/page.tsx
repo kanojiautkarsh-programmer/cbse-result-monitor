@@ -147,7 +147,7 @@ export default function Home() {
   }, [fetchData]);
 
   useEffect(() => {
-    const expectedDate = new Date('2026-05-15T00:00:00');
+    const expectedDate = new Date('2026-04-15T08:00:00');
     
     const updateCountdown = () => {
       const now = new Date();
@@ -158,6 +158,7 @@ export default function Home() {
         document.getElementById('hours')!.textContent = '0';
         document.getElementById('minutes')!.textContent = '0';
         document.getElementById('seconds')!.textContent = '0';
+        document.getElementById('countdown-title')!.textContent = '🎉 RESULTS ARE OUT!';
         return;
       }
       
@@ -233,9 +234,9 @@ export default function Home() {
         </header>
 
         <section className="mb-8">
-          <div className="glass-card rounded-xl p-6 text-center">
-            <h2 className="text-2xl font-bold mb-4">⏰ Expected Result Date</h2>
-            <p className="text-zinc-400 mb-4">CBSE Class 10 Results 2026 are expected in May 2026</p>
+          <div className="glass-card rounded-xl p-6 text-center border-2 border-green-500/50">
+            <h2 className="text-2xl font-bold mb-4 text-green-400" id="countdown-title">🎉 Results Expected TOMORROW! (April 15)</h2>
+            <p className="text-zinc-400 mb-4">CBSE Class 10 Results 2026 - Get Ready!</p>
             <div className="grid grid-cols-4 gap-4 max-w-md mx-auto">
               <div className="bg-zinc-800 rounded-lg p-3">
                 <div className="text-3xl font-bold text-blue-400" id="days">--</div>
@@ -254,7 +255,7 @@ export default function Home() {
                 <div className="text-xs text-zinc-500">Seconds</div>
               </div>
             </div>
-            <p className="text-sm text-zinc-500 mt-4">Results will be available on cbse.gov.in, DigiLocker, and UMANG</p>
+            <p className="text-sm text-zinc-500 mt-4">Results will be available on <span className="text-blue-400 font-semibold">cbse.gov.in</span>, <span className="text-green-400 font-semibold">DigiLocker</span>, and <span className="text-purple-400 font-semibold">UMANG</span></p>
           </div>
         </section>
 
