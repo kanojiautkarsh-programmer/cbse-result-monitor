@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('Starting CBSE update check (15-min interval)...');
+    console.log('Starting CBSE update check...');
     const allUpdates = [];
     const counts = { reddit: 0, cbse: 0, digilocker: 0, umang: 0, news: 0, x: 0 };
 
@@ -108,8 +108,9 @@ export async function GET(request: NextRequest) {
       timestamp: now,
       updatesFound: uniqueUpdates.length,
       bySource: counts,
-      schedule: 'Every 15 minutes',
+      schedule: 'Every 6 hours (daily on free tier)',
       sources: ['Reddit', 'CBSE.gov.in', 'DigiLocker', 'UMANG', 'News Sites', 'X/Twitter'],
+      manualTrigger: 'POST to this endpoint with CRON_SECRET for manual updates',
     });
   } catch (error) {
     console.error('Error during update check:', error);
@@ -118,4 +119,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const result = await GET(request);
+  return result;
 }
