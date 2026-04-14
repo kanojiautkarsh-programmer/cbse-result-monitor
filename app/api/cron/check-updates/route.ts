@@ -12,6 +12,7 @@ import {
   checkUMANGCBSE,
   fetchNewsUpdates,
   fetchDirectResultNews,
+  fetchXUpdates,
 } from '@/lib/scrapers';
 
 export const dynamic = 'force-dynamic';
@@ -23,9 +24,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    console.log('Starting CBSE update check...');
+    console.log('Starting CBSE update check (15-min interval)...');
     const allUpdates = [];
-    const counts = { reddit: 0, cbse: 0, digilocker: 0, umang: 0, news: 0 };
+    const counts = { reddit: 0, cbse: 0, digilocker: 0, umang: 0, news: 0, x: 0 };
 
     const [
       redditUpdates,
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
       umangCBSE,
       newsUpdates,
       directNews,
+      xUpdates,
     ] = await Promise.all([
       fetchRedditUpdates(),
       fetchNewRedditPosts(),
@@ -49,6 +51,7 @@ export async function GET(request: NextRequest) {
       checkUMANGCBSE(),
       fetchNewsUpdates(),
       fetchDirectResultNews(),
+      fetchXUpdates(),
     ]);
 
     allUpdates.push(...redditUpdates, ...newRedditPosts);
@@ -78,6 +81,9 @@ export async function GET(request: NextRequest) {
     allUpdates.push(...newsUpdates, ...directNews);
     counts.news = newsUpdates.length + directNews.length;
 
+    allUpdates.push(...xUpdates);
+    counts.x = xUpdates.length;
+
     const seenIds = new Set<string>();
     const uniqueUpdates = allUpdates.filter(update => {
       if (seenIds.has(update.id)) return false;
@@ -102,7 +108,8 @@ export async function GET(request: NextRequest) {
       timestamp: now,
       updatesFound: uniqueUpdates.length,
       bySource: counts,
-      topDiscussions: discussions.slice(0, 5).map(d => d.title),
+      schedule: 'Every 15 minutes',
+      sources: ['Reddit', 'CBSE.gov.in', 'DigiLocker', 'UMANG', 'News Sites', 'X/Twitter'],
     });
   } catch (error) {
     console.error('Error during update check:', error);
