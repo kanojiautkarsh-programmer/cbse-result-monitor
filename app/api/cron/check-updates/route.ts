@@ -10,6 +10,8 @@ import {
   checkDigiLockerCBSE,
   fetchUMANGUpdates,
   checkUMANGCBSE,
+  fetchNewsUpdates,
+  fetchDirectResultNews,
 } from '@/lib/scrapers';
 
 export const dynamic = 'force-dynamic';
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Starting CBSE update check...');
     const allUpdates = [];
-    const counts = { reddit: 0, cbse: 0, digilocker: 0, umang: 0 };
+    const counts = { reddit: 0, cbse: 0, digilocker: 0, umang: 0, news: 0 };
 
     const [
       redditUpdates,
@@ -34,6 +36,8 @@ export async function GET(request: NextRequest) {
       digilockerCBSE,
       umangUpdates,
       umangCBSE,
+      newsUpdates,
+      directNews,
     ] = await Promise.all([
       fetchRedditUpdates(),
       fetchNewRedditPosts(),
@@ -43,6 +47,8 @@ export async function GET(request: NextRequest) {
       checkDigiLockerCBSE(),
       fetchUMANGUpdates(),
       checkUMANGCBSE(),
+      fetchNewsUpdates(),
+      fetchDirectResultNews(),
     ]);
 
     allUpdates.push(...redditUpdates, ...newRedditPosts);
@@ -69,6 +75,9 @@ export async function GET(request: NextRequest) {
       counts.umang++;
     }
 
+    allUpdates.push(...newsUpdates, ...directNews);
+    counts.news = newsUpdates.length + directNews.length;
+
     const seenIds = new Set<string>();
     const uniqueUpdates = allUpdates.filter(update => {
       if (seenIds.has(update.id)) return false;
@@ -93,6 +102,7 @@ export async function GET(request: NextRequest) {
       timestamp: now,
       updatesFound: uniqueUpdates.length,
       bySource: counts,
+      topDiscussions: discussions.slice(0, 5).map(d => d.title),
     });
   } catch (error) {
     console.error('Error during update check:', error);

@@ -33,17 +33,21 @@ const RESULT_KEYWORDS = [
   'topper',
   'result website',
   'pariksha result',
+  'board result',
+  'scorecard',
+  'marksheet',
+  'cbse 10',
 ];
 
 const SEARCH_TERMS = [
   'cbse class 10 result 2026',
-  'class 10 board result',
-  'cbse 10th marks',
-  'result checking site',
-  'cbse portal result',
+  'cbse 10th result announcement',
+  'class 10 board result date',
+  'cbse result checking',
+  'cbse marks',
+  'cbse grade 10',
+  'board exam result',
 ];
-
-const SUBREDDITS = ['cbse', 'IndiaEducation', 'delhi', 'mumbai', 'delhiforindia'];
 
 export async function fetchRedditUpdates(): Promise<Update[]> {
   const updates: Update[] = [];
@@ -53,7 +57,7 @@ export async function fetchRedditUpdates(): Promise<Update[]> {
     try {
       const encoded = encodeURIComponent(term);
       const response = await fetch(
-        `https://www.reddit.com/r/cbse/search.json?q=${encoded}&restrict_sr=1&sort=new&limit=15&t=week`,
+        `https://www.reddit.com/search.json?q=${encoded}&sort=new&limit=20&t=month`,
         {
           headers: {
             'User-Agent': 'CBSE-Result-Monitor/1.0',
@@ -64,25 +68,40 @@ export async function fetchRedditUpdates(): Promise<Update[]> {
       if (!response.ok) continue;
 
       const data = await response.json();
-      const posts: RedditPost[] = data.data.children.map((c: { data: RedditPost }) => c.data);
+      const posts = data.data.children;
 
-      for (const post of posts) {
-        if (seenIds.has(post.id)) continue;
-        seenIds.add(post.id);
+      for (const item of posts) {
+        const post: RedditPost = item.data;
+        
+        if (post.subreddit?.toLowerCase() === 'cbse' || 
+            post.subreddit?.toLowerCase() === 'india' ||
+            post.subreddit?.toLowerCase() === 'delhi' ||
+            post.title.toLowerCase().includes('cbse')) {
+          
+          if (seenIds.has(post.id)) continue;
+          seenIds.add(post.id);
 
-        const description = post.selftext
-          ? post.selftext.substring(0, 300) + (post.selftext.length > 300 ? '...' : '')
-          : 'Discussion about CBSE results on Reddit';
+          const title = post.title;
+          const isResultRelated = RESULT_KEYWORDS.some(kw => 
+            title.toLowerCase().includes(kw.toLowerCase())
+          );
 
-        updates.push({
-          id: `reddit-${post.id}`,
-          source: 'reddit',
-          title: post.title,
-          description: description,
-          url: `https://reddit.com${post.permalink}`,
-          timestamp: new Date(post.created_utc * 1000).toISOString(),
-          checkedAt: new Date().toISOString(),
-        });
+          if (isResultRelated) {
+            const description = post.selftext
+              ? post.selftext.substring(0, 300) + (post.selftext.length > 300 ? '...' : '')
+              : extractRelevantText(post.title);
+
+            updates.push({
+              id: `reddit-${post.id}`,
+              source: 'reddit',
+              title: title,
+              description: description,
+              url: `https://reddit.com${post.permalink}`,
+              timestamp: new Date(post.created_utc * 1000).toISOString(),
+              checkedAt: new Date().toISOString(),
+            });
+          }
+        }
       }
     } catch (error) {
       console.error(`Error fetching Reddit for "${term}":`, error);
@@ -103,7 +122,7 @@ export async function fetchTopRedditDiscussions(): Promise<{
 }[]> {
   try {
     const response = await fetch(
-      'https://www.reddit.com/r/cbse/hot.json?limit=20',
+      'https://www.reddit.com/r/cbse/hot.json?limit=25',
       {
         headers: {
           'User-Agent': 'CBSE-Result-Monitor/1.0',
@@ -113,8 +132,8 @@ export async function fetchTopRedditDiscussions(): Promise<{
 
     if (!response.ok) return [];
 
-    const data = await response.json();
-    return data.data.children.map((c: { data: RedditPost }) => ({
+    const data = response.json();
+    return (await data).data.children.map((c: { data: RedditPost }) => ({
       id: c.data.id,
       title: c.data.title,
       url: `https://reddit.com${c.data.permalink}`,
@@ -132,7 +151,7 @@ export async function fetchTopRedditDiscussions(): Promise<{
 export async function fetchNewRedditPosts(): Promise<Update[]> {
   try {
     const response = await fetch(
-      'https://www.reddit.com/r/cbse/new.json?limit=25',
+      'https://www.reddit.com/r/cbse/new.json?limit=50',
       {
         headers: {
           'User-Agent': 'CBSE-Result-Monitor/1.0',
@@ -147,7 +166,7 @@ export async function fetchNewRedditPosts(): Promise<Update[]> {
     const seenIds = new Set<string>();
 
     for (const item of data.data.children) {
-      const post = item.data as RedditPost;
+      const post: RedditPost = item.data;
       if (seenIds.has(post.id)) continue;
       seenIds.add(post.id);
 
@@ -159,7 +178,7 @@ export async function fetchNewRedditPosts(): Promise<Update[]> {
           id: `reddit-new-${post.id}`,
           source: 'reddit',
           title: post.title,
-          description: post.selftext?.substring(0, 300) || 'New CBSE result discussion on Reddit',
+          description: post.selftext?.substring(0, 300) || extractRelevantText(post.title),
           url: `https://reddit.com${post.permalink}`,
           timestamp: new Date(post.created_utc * 1000).toISOString(),
           checkedAt: new Date().toISOString(),
@@ -172,4 +191,23 @@ export async function fetchNewRedditPosts(): Promise<Update[]> {
     console.error('Error fetching new Reddit posts:', error);
     return [];
   }
+}
+
+function extractRelevantText(title: string): string {
+  const titleLower = title.toLowerCase();
+  
+  if (titleLower.includes('date') || titleLower.includes('when')) {
+    return 'Discussion about expected result announcement date. Check back for official updates.';
+  }
+  if (titleLower.includes('link') || titleLower.includes('where')) {
+    return 'Discussion about where to find/check CBSE results online.';
+  }
+  if (titleLower.includes('delay') || titleLower.includes('postpone')) {
+    return 'Discussion about potential delays in CBSE result announcement.';
+  }
+  if (titleLower.includes('rumor') || titleLower.includes('fake')) {
+    return 'Warning about fake result links circulating online.';
+  }
+  
+  return 'CBSE Class 10 result related discussion. Visit official sources for accurate information.';
 }
