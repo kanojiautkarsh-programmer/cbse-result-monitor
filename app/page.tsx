@@ -146,6 +146,37 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
+  useEffect(() => {
+    const expectedDate = new Date('2026-05-15T00:00:00');
+    
+    const updateCountdown = () => {
+      const now = new Date();
+      const diff = expectedDate.getTime() - now.getTime();
+      
+      if (diff <= 0) {
+        document.getElementById('days')!.textContent = '0';
+        document.getElementById('hours')!.textContent = '0';
+        document.getElementById('minutes')!.textContent = '0';
+        document.getElementById('seconds')!.textContent = '0';
+        return;
+      }
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      
+      document.getElementById('days')!.textContent = days.toString();
+      document.getElementById('hours')!.textContent = hours.toString();
+      document.getElementById('minutes')!.textContent = minutes.toString();
+      document.getElementById('seconds')!.textContent = seconds.toString();
+    };
+    
+    updateCountdown();
+    const countdownInterval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(countdownInterval);
+  }, []);
+
   const handleRefresh = async () => {
     setLoading(true);
     await fetchData();
@@ -200,6 +231,32 @@ export default function Home() {
             <span>🔄</span> Refresh Now
           </button>
         </header>
+
+        <section className="mb-8">
+          <div className="glass-card rounded-xl p-6 text-center">
+            <h2 className="text-2xl font-bold mb-4">⏰ Expected Result Date</h2>
+            <p className="text-zinc-400 mb-4">CBSE Class 10 Results 2026 are expected in May 2026</p>
+            <div className="grid grid-cols-4 gap-4 max-w-md mx-auto">
+              <div className="bg-zinc-800 rounded-lg p-3">
+                <div className="text-3xl font-bold text-blue-400" id="days">--</div>
+                <div className="text-xs text-zinc-500">Days</div>
+              </div>
+              <div className="bg-zinc-800 rounded-lg p-3">
+                <div className="text-3xl font-bold text-blue-400" id="hours">--</div>
+                <div className="text-xs text-zinc-500">Hours</div>
+              </div>
+              <div className="bg-zinc-800 rounded-lg p-3">
+                <div className="text-3xl font-bold text-blue-400" id="minutes">--</div>
+                <div className="text-xs text-zinc-500">Minutes</div>
+              </div>
+              <div className="bg-zinc-800 rounded-lg p-3">
+                <div className="text-3xl font-bold text-blue-400" id="seconds">--</div>
+                <div className="text-xs text-zinc-500">Seconds</div>
+              </div>
+            </div>
+            <p className="text-sm text-zinc-500 mt-4">Results will be available on cbse.gov.in, DigiLocker, and UMANG</p>
+          </div>
+        </section>
 
         {error && (
           <div className="glass-card rounded-xl p-4 mb-6 text-red-400 text-center">
