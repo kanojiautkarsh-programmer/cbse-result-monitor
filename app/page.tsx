@@ -30,33 +30,18 @@ const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
 };
 
 const SOURCE_LINKS = [
-  {
-    name: 'CBSE Official',
-    url: 'https://cbse.gov.in/',
-    icon: '🎓',
-  },
-  {
-    name: 'DigiLocker',
-    url: 'https://digilocker.gov.in/',
-    icon: '📁',
-  },
-  {
-    name: 'UMANG',
-    url: 'https://umang.gov.in/',
-    icon: '📱',
-  },
-  {
-    name: 'r/cbse',
-    url: 'https://reddit.com/r/cbse',
-    icon: '💬',
-  },
+  { name: 'CBSE Official', url: 'https://cbse.gov.in/', icon: '🎓' },
+  { name: 'DigiLocker', url: 'https://digilocker.gov.in/', icon: '📁' },
+  { name: 'UMANG', url: 'https://umang.gov.in/', icon: '📱' },
+  { name: 'r/cbse', url: 'https://reddit.com/r/cbse', icon: '💬' },
 ];
+
+const RESULT_KEYWORDS = ['result', 'results', 'score', 'marks', 'grades', 'pass', 'declared', 'announced', 'check', 'view', 'download'];
 
 function formatTimeAgo(timestamp: string): string {
   const now = new Date();
   const date = new Date(timestamp);
   const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
   if (seconds < 60) return 'Just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)} mins ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
@@ -67,34 +52,108 @@ function formatRedditTime(timestamp: number): string {
   return formatTimeAgo(new Date(timestamp * 1000).toISOString());
 }
 
+function isResultRelated(title: string, description: string): boolean {
+  const text = (title + ' ' + description).toLowerCase();
+  return RESULT_KEYWORDS.some(keyword => text.includes(keyword));
+}
+
 export default function Home() {
   const [updates, setUpdates] = useState<Update[]>([]);
   const [discussions, setDiscussions] = useState<Discussion[]>([]);
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [showNotificationBanner, setShowNotificationBanner] = useState(false);
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      setError('Notifications not supported in this browser');
+      return;
+    }
+    
+    if (Notification.permission === 'granted') {
+      setNotificationsEnabled(true);
+      setShowNotificationBanner(false);
+      return;
+    }
+    
+    if (Notification.permission !== 'denied') {
+      const permission = await Notification.requestPermission();
+      if (permission === 'granted') {
+        setNotificationsEnabled(true);
+        setShowNotificationBanner(false);
+        new Notification('CBSE Result Monitor', {
+          body: 'Notifications enabled! You will be alerted about new updates.',
+          icon: '🔔'
+        });
+      }
+    }
+  };
+
+  const sendNotification = (title: string, body: string) => {
+    if (notificationsEnabled && Notification.permission === 'granted') {
+      new Notification(title, { body, icon: '📢' });
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/updates');
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
-      setUpdates(data.updates || []);
-      setDiscussions(data.discussions || []);
+      
+      const oldUpdateCount = updates.length;
+      const newUpdates = data.updates || [];
+      const newDiscussions = data.discussions || [];
+      
+      setUpdates(newUpdates);
+      setDiscussions(newDiscussions);
       setLastChecked(data.lastChecked);
       setError(null);
+
+      if (newUpdates.length > oldUpdateCount && oldUpdateCount > 0) {
+        sendNotification(
+          '🔔 New CBSE Update!',
+          `${newUpdates.length - oldUpdateCount} new update(s) found`
+        );
+      }
+
+      const resultUpdates = newUpdates.filter((u: Update) => isResultRelated(u.title, u.description));
+      if (resultUpdates.length > 0 && loading) {
+        sendNotification(
+          '📢 CBSE Result Related!',
+          `Found ${resultUpdates.length} result-related update(s)`
+        );
+      }
     } catch (err) {
       setError('Failed to load updates. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [updates.length, loading]);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationsEnabled(Notification.permission === 'granted');
+      if (Notification.permission === 'default') {
+        setShowNotificationBanner(true);
+      }
+    }
+    
     fetchData();
     const interval = setInterval(fetchData, 60000);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const handleRefresh = async () => {
+    setLoading(true);
+    await fetchData();
+    sendNotification('🔄 Refreshed', 'Latest updates loaded');
+  };
+
+  const relevantUpdates = updates.filter(u => isResultRelated(u.title, u.description));
+  const relevantDiscussions = discussions.filter(d => isResultRelated(d.title, ''));
 
   return (
     <main className="min-h-screen p-4 md:p-8">
@@ -114,6 +173,32 @@ export default function Home() {
               <span>Last checked: {formatTimeAgo(lastChecked)}</span>
             )}
           </div>
+          
+          {showNotificationBanner && (
+            <div className="mt-4 glass-card rounded-xl p-4 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <span className="text-white">Enable notifications for instant alerts</span>
+              <button
+                onClick={requestNotificationPermission}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+              >
+                Enable Notifications
+              </button>
+            </div>
+          )}
+          
+          {notificationsEnabled && (
+            <div className="mt-4 text-green-400 text-sm flex items-center justify-center gap-2">
+              <span>🔔</span>
+              <span>Notifications enabled</span>
+            </div>
+          )}
+          
+          <button
+            onClick={handleRefresh}
+            className="mt-4 px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors flex items-center gap-2 mx-auto"
+          >
+            <span>🔄</span> Refresh Now
+          </button>
         </header>
 
         {error && (
@@ -122,9 +207,43 @@ export default function Home() {
           </div>
         )}
 
+        {relevantUpdates.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <span className="animate-pulse">🚨</span>
+              <span className="text-red-400">Result-Related Updates</span>
+            </h2>
+            <div className="space-y-3">
+              {relevantUpdates.slice(0, 5).map((update) => (
+                <a
+                  key={update.id}
+                  href={update.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="update-card block border-red-500/30 hover:border-red-500"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h3 className="font-medium text-white">{update.title}</h3>
+                    <span
+                      className="source-badge"
+                      style={{ backgroundColor: SOURCE_LABELS[update.source]?.color }}
+                    >
+                      {SOURCE_LABELS[update.source]?.label || update.source}
+                    </span>
+                  </div>
+                  <p className="text-zinc-400 text-sm mb-2">{update.description}</p>
+                  <span className="text-xs text-zinc-500">
+                    {formatTimeAgo(update.timestamp)}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span>📢</span> Latest Updates
+            <span>📢</span> All Updates ({updates.length})
           </h2>
           {loading ? (
             <div className="glass-card rounded-xl p-8 text-center text-zinc-400">
@@ -183,9 +302,39 @@ export default function Home() {
           </div>
         </section>
 
+        {relevantDiscussions.length > 0 && (
+          <section className="mb-8">
+            <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+              <span>🔥</span>
+              <span className="text-orange-400">Hot Result Discussions on Reddit</span>
+            </h2>
+            <div className="grid gap-3">
+              {relevantDiscussions.slice(0, 5).map((discussion) => (
+                <a
+                  key={discussion.id}
+                  href={discussion.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="discussion-card border-orange-500/30 hover:border-orange-500"
+                >
+                  <h3 className="font-medium text-white hover:text-orange-400 transition-colors mb-2">
+                    {discussion.title}
+                  </h3>
+                  <div className="flex items-center gap-4 text-xs text-zinc-500">
+                    <span>by u/{discussion.author}</span>
+                    <span>⬆️ {discussion.score}</span>
+                    <span>💬 {discussion.numComments}</span>
+                    <span>{formatRedditTime(discussion.created)}</span>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-            <span>💬</span> Reddit Discussions
+            <span>💬</span> Reddit Discussions ({discussions.length})
           </h2>
           {discussions.length === 0 ? (
             <div className="glass-card rounded-xl p-8 text-center text-zinc-400">
@@ -201,11 +350,9 @@ export default function Home() {
                   rel="noopener noreferrer"
                   className="discussion-card"
                 >
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <h3 className="font-medium text-white hover:text-orange-400 transition-colors">
-                      {discussion.title}
-                    </h3>
-                  </div>
+                  <h3 className="font-medium text-white hover:text-orange-400 transition-colors mb-2">
+                    {discussion.title}
+                  </h3>
                   <div className="flex items-center gap-4 text-xs text-zinc-500">
                     <span>by u/{discussion.author}</span>
                     <span>⬆️ {discussion.score}</span>

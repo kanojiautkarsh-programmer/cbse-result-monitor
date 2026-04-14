@@ -10,38 +10,70 @@ interface RedditPost {
   score: number;
   num_comments: number;
   permalink: string;
+  subreddit: string;
 }
+
+const RESULT_KEYWORDS = [
+  'class 10 result',
+  'cbse 10th result',
+  'result 2026',
+  'result declared',
+  'result announced',
+  'cbse result link',
+  'check result',
+  'view result',
+  'download result',
+  'result out',
+  'result today',
+  'result tomorrow',
+  'marks out',
+  'grades out',
+  'passing result',
+  'merit list',
+  'topper',
+  'result website',
+  'pariksha result',
+];
+
+const SEARCH_TERMS = [
+  'cbse class 10 result 2026',
+  'class 10 board result',
+  'cbse 10th marks',
+  'result checking site',
+  'cbse portal result',
+];
+
+const SUBREDDITS = ['cbse', 'IndiaEducation', 'delhi', 'mumbai', 'delhiforindia'];
 
 export async function fetchRedditUpdates(): Promise<Update[]> {
   const updates: Update[] = [];
-  const searchTerms = ['CBSE class 10 result', 'class 10 result 2026', 'cbse 10th result'];
-  
-  for (const term of searchTerms) {
+  const seenIds = new Set<string>();
+
+  for (const term of SEARCH_TERMS) {
     try {
       const encoded = encodeURIComponent(term);
       const response = await fetch(
-        `https://www.reddit.com/r/cbse/search.json?q=${encoded}&restrict_sr=1&sort=new&limit=10`,
+        `https://www.reddit.com/r/cbse/search.json?q=${encoded}&restrict_sr=1&sort=new&limit=15&t=week`,
         {
           headers: {
-            'User-Agent': 'CBSE-Result-Monitor/1.0 (by u/YourBotUsername)',
+            'User-Agent': 'CBSE-Result-Monitor/1.0',
           },
         }
       );
-      
+
       if (!response.ok) continue;
-      
+
       const data = await response.json();
       const posts: RedditPost[] = data.data.children.map((c: { data: RedditPost }) => c.data);
-      
-      const oneDayAgo = Date.now() / 1000 - 86400;
-      
+
       for (const post of posts) {
-        if (post.created_utc < oneDayAgo) continue;
-        
-        const description = post.selftext 
+        if (seenIds.has(post.id)) continue;
+        seenIds.add(post.id);
+
+        const description = post.selftext
           ? post.selftext.substring(0, 300) + (post.selftext.length > 300 ? '...' : '')
-          : 'No description available';
-        
+          : 'Discussion about CBSE results on Reddit';
+
         updates.push({
           id: `reddit-${post.id}`,
           source: 'reddit',
@@ -56,7 +88,7 @@ export async function fetchRedditUpdates(): Promise<Update[]> {
       console.error(`Error fetching Reddit for "${term}":`, error);
     }
   }
-  
+
   return updates;
 }
 
@@ -71,16 +103,16 @@ export async function fetchTopRedditDiscussions(): Promise<{
 }[]> {
   try {
     const response = await fetch(
-      'https://www.reddit.com/r/cbse/hot.json?limit=10',
+      'https://www.reddit.com/r/cbse/hot.json?limit=20',
       {
         headers: {
-          'User-Agent': 'CBSE-Result-Monitor/1.0 (by u/YourBotUsername)',
+          'User-Agent': 'CBSE-Result-Monitor/1.0',
         },
       }
     );
-    
+
     if (!response.ok) return [];
-    
+
     const data = await response.json();
     return data.data.children.map((c: { data: RedditPost }) => ({
       id: c.data.id,
@@ -93,6 +125,51 @@ export async function fetchTopRedditDiscussions(): Promise<{
     }));
   } catch (error) {
     console.error('Error fetching top Reddit discussions:', error);
+    return [];
+  }
+}
+
+export async function fetchNewRedditPosts(): Promise<Update[]> {
+  try {
+    const response = await fetch(
+      'https://www.reddit.com/r/cbse/new.json?limit=25',
+      {
+        headers: {
+          'User-Agent': 'CBSE-Result-Monitor/1.0',
+        },
+      }
+    );
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    const updates: Update[] = [];
+    const seenIds = new Set<string>();
+
+    for (const item of data.data.children) {
+      const post = item.data as RedditPost;
+      if (seenIds.has(post.id)) continue;
+      seenIds.add(post.id);
+
+      const title = post.title.toLowerCase();
+      const isResultRelated = RESULT_KEYWORDS.some(kw => title.includes(kw.toLowerCase()));
+
+      if (isResultRelated) {
+        updates.push({
+          id: `reddit-new-${post.id}`,
+          source: 'reddit',
+          title: post.title,
+          description: post.selftext?.substring(0, 300) || 'New CBSE result discussion on Reddit',
+          url: `https://reddit.com${post.permalink}`,
+          timestamp: new Date(post.created_utc * 1000).toISOString(),
+          checkedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    return updates;
+  } catch (error) {
+    console.error('Error fetching new Reddit posts:', error);
     return [];
   }
 }

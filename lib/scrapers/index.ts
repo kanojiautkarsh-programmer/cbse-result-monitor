@@ -1,4 +1,4 @@
-export { fetchRedditUpdates, fetchTopRedditDiscussions } from './reddit';
-export { fetchCBSESiteUpdates } from './cbse';
-export { fetchDigiLockerUpdates } from './digilocker';
-export { fetchUMANGUpdates } from './umang';
+export { fetchRedditUpdates, fetchTopRedditDiscussions, fetchNewRedditPosts } from './reddit';
+export { fetchCBSESiteUpdates, checkCBSEResultPortal } from './cbse';
+export { fetchDigiLockerUpdates, checkDigiLockerCBSE } from './digilocker';
+export { fetchUMANGUpdates, checkUMANGCBSE } from './umang';

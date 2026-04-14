@@ -3,9 +3,13 @@ import { addUpdate, setLastChecked, saveRedditDiscussions } from '@/lib/storage'
 import {
   fetchRedditUpdates,
   fetchTopRedditDiscussions,
+  fetchNewRedditPosts,
   fetchCBSESiteUpdates,
+  checkCBSEResultPortal,
   fetchDigiLockerUpdates,
+  checkDigiLockerCBSE,
   fetchUMANGUpdates,
+  checkUMANGCBSE,
 } from '@/lib/scrapers';
 
 export const dynamic = 'force-dynamic';
@@ -19,17 +23,60 @@ export async function GET(request: NextRequest) {
   try {
     console.log('Starting CBSE update check...');
     const allUpdates = [];
+    const counts = { reddit: 0, cbse: 0, digilocker: 0, umang: 0 };
 
-    const [redditUpdates, cbseUpdates, digilockerUpdates, umangUpdates] = await Promise.all([
+    const [
+      redditUpdates,
+      newRedditPosts,
+      cbseUpdates,
+      cbsePortal,
+      digilockerUpdates,
+      digilockerCBSE,
+      umangUpdates,
+      umangCBSE,
+    ] = await Promise.all([
       fetchRedditUpdates(),
+      fetchNewRedditPosts(),
       fetchCBSESiteUpdates(),
+      checkCBSEResultPortal(),
       fetchDigiLockerUpdates(),
+      checkDigiLockerCBSE(),
       fetchUMANGUpdates(),
+      checkUMANGCBSE(),
     ]);
 
-    allUpdates.push(...redditUpdates, ...cbseUpdates, ...digilockerUpdates, ...umangUpdates);
+    allUpdates.push(...redditUpdates, ...newRedditPosts);
+    counts.reddit = redditUpdates.length + newRedditPosts.length;
 
-    for (const update of allUpdates) {
+    allUpdates.push(...cbseUpdates);
+    counts.cbse = cbseUpdates.length;
+    if (cbsePortal) {
+      allUpdates.push(cbsePortal);
+      counts.cbse++;
+    }
+
+    allUpdates.push(...digilockerUpdates);
+    counts.digilocker = digilockerUpdates.length;
+    if (digilockerCBSE) {
+      allUpdates.push(digilockerCBSE);
+      counts.digilocker++;
+    }
+
+    allUpdates.push(...umangUpdates);
+    counts.umang = umangUpdates.length;
+    if (umangCBSE) {
+      allUpdates.push(umangCBSE);
+      counts.umang++;
+    }
+
+    const seenIds = new Set<string>();
+    const uniqueUpdates = allUpdates.filter(update => {
+      if (seenIds.has(update.id)) return false;
+      seenIds.add(update.id);
+      return true;
+    });
+
+    for (const update of uniqueUpdates) {
       await addUpdate(update);
     }
 
@@ -39,18 +86,13 @@ export async function GET(request: NextRequest) {
     const now = new Date().toISOString();
     await setLastChecked(now);
 
-    console.log(`Check complete. Found ${allUpdates.length} updates.`);
+    console.log(`Check complete. Found ${uniqueUpdates.length} unique updates.`);
 
     return Response.json({
       success: true,
       timestamp: now,
-      updatesFound: allUpdates.length,
-      bySource: {
-        reddit: redditUpdates.length,
-        cbse: cbseUpdates.length,
-        digilocker: digilockerUpdates.length,
-        umang: umangUpdates.length,
-      },
+      updatesFound: uniqueUpdates.length,
+      bySource: counts,
     });
   } catch (error) {
     console.error('Error during update check:', error);
